@@ -1,10 +1,16 @@
-from __future__ import absolute_import
-from __future__ import division
-from tqdm import tqdm
+from __future__ import absolute_import#from __future__ import absolute_import means that if you import string, Python will always look for a top-level string module, rather than current_package.string.
+from __future__ import division# change the division operator
+"""
+"""
+###
+#offer backward compatibility with Python2
+
+###
+from tqdm import tqdm#progress bar
 import json
 import time
-import os
-import logging
+import os## operating system library
+import logging##log to record info
 import numpy as np
 import tensorflow as tf
 from code.model.agent import Agent
@@ -17,9 +23,9 @@ import resource
 import sys
 from code.model.baseline import ReactiveBaseline
 from code.model.nell_eval import nell_eval
-from scipy.misc import logsumexp as lse
+from scipy.special import logsumexp as lse
 
-logger = logging.getLogger()
+logger = logging.getLogger()#create object
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 
@@ -27,9 +33,9 @@ class Trainer(object):
     def __init__(self, params):
 
         # transfer parameters to self
-        for key, val in params.items(): setattr(self, key, val);
+        for key, val in params.items(): setattr(self, key, val);#sets the value of the attribute of an object
 
-        self.agent = Agent(params)
+        self.agent = Agent(params)#create RL agent
         self.save_path = None
         self.train_environment = env(params, 'train')
         self.dev_test_environment = env(params, 'dev')
@@ -53,12 +59,12 @@ class Trainer(object):
         # multiply with rewards
         final_reward = self.cum_discounted_reward - self.tf_baseline
         # reward_std = tf.sqrt(tf.reduce_mean(tf.square(final_reward))) + 1e-5 # constant addded for numerical stability
-        reward_mean, reward_var = tf.nn.moments(final_reward, axes=[0, 1])
+        reward_mean, reward_var = tf.nn.moments(final_reward, axes=[0, 1])##calculate mean and variance
         # Constant added for numerical stability
         reward_std = tf.sqrt(reward_var) + 1e-6
-        final_reward = tf.div(final_reward - reward_mean, reward_std)
+        final_reward = tf.div(final_reward - reward_mean, reward_std)#reward-mean/ std a norm step
 
-        loss = tf.multiply(loss, final_reward)  # [B, T]
+        loss = tf.multiply(loss, final_reward)  # [B, T] element-wise multiply
         self.loss_before_reg = loss
 
         total_loss = tf.reduce_mean(loss) - self.decaying_beta * self.entropy_reg_loss(self.per_example_logits)  # scalar
@@ -76,12 +82,12 @@ class Trainer(object):
         self.candidate_relation_sequence = []
         self.candidate_entity_sequence = []
         self.input_path = []
-        self.first_state_of_test = tf.placeholder(tf.bool, name="is_first_state_of_test")
+        self.first_state_of_test = tf.placeholder(tf.bool, name="is_first_state_of_test") ##占位符，动态传入数据通过session
         self.query_relation = tf.placeholder(tf.int32, [None], name="query_relation")
         self.range_arr = tf.placeholder(tf.int32, shape=[None, ])
         self.global_step = tf.Variable(0, trainable=False)
         self.decaying_beta = tf.train.exponential_decay(self.beta, self.global_step,
-                                                   200, 0.90, staircase=False)
+                                                   200, 0.90, staircase=False)#dynamically reduce beta
         self.entity_sequence = []
 
         # to feed in the discounted reward tensor
@@ -185,7 +191,7 @@ class Trainer(object):
 
     def gpu_io_setup(self):
         # create fetches for partial_run_setup
-        fetches = self.per_example_loss  + self.action_idx + [self.loss_op] + self.per_example_logits + [self.dummy]
+        fetches = self.per_example_loss  + self.action_idx + [self.loss_op] + self.per_example_logits + [self.dummy]#The raw predictions which come out of the last layer of the neural network. but what the dummy is
         feeds =  [self.first_state_of_test] + self.candidate_relation_sequence+ self.candidate_entity_sequence + self.input_path + \
                 [self.query_relation] + [self.cum_discounted_reward] + [self.range_arr] + self.entity_sequence
 
@@ -222,12 +228,16 @@ class Trainer(object):
             # for each time step
             loss_before_regularization = []
             logits = []
+            ###
             for i in range(self.path_length):
                 feed_dict[i][self.candidate_relation_sequence[i]] = state['next_relations']
                 feed_dict[i][self.candidate_entity_sequence[i]] = state['next_entities']
                 feed_dict[i][self.entity_sequence[i]] = state['current_entities']
                 per_example_loss, per_example_logits, idx = sess.partial_run(h, [self.per_example_loss[i], self.per_example_logits[i], self.action_idx[i]],
-                                                  feed_dict=feed_dict[i])
+                                                  feed_dict=feed_dict[i])###
+                #To use partial execution, a user first calls partial_run_setup() and then a sequence of partial_run().
+                # partial_run_setup specifies the list of feeds and fetches that will be used in the subsequent partial_run calls.
+                ###
                 loss_before_regularization.append(per_example_loss)
                 logits.append(per_example_logits)
                 # action = np.squeeze(action, axis=1)  # [B,]
@@ -583,7 +593,7 @@ if __name__ == '__main__':
         trainer.test(sess, beam=True, print_paths=True, save_model=False)
 
 
-        print options['nell_evaluation']
+        print (options['nell_evaluation'])
         if options['nell_evaluation'] == 1:
             nell_eval(path_logger_file + "/" + "test_beam/" + "pathsanswers", trainer.data_input_dir+'/sort_test.pairs' )
 
